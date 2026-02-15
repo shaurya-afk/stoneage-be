@@ -1,0 +1,77 @@
+import json
+import os
+from typing import Dict, List
+
+from google import genai
+from google.genai import types
+
+
+class LLMProcessor:
+    def __init__(self, model: str = "gemini-2.0-flash"):
+        self.model = model
+        api_key = os.getenv("API_KEY") or os.getenv("API_KEY")
+        self.client = genai.Client(api_key=api_key)
+
+    def prompt_builder(self, document_type: str, fields: List[str], hints: Dict, text: str) -> str:
+        field_list = "\n".join([f"- {f}" for f in fields])
+
+        return f"""
+        You are extracting structured data from a {document_type}.
+        Extract ONLY the requested fields.
+        Return ONLY valid JSON.
+        If a field is missing, return null.
+        FIELDS TO EXTRACT:
+        {field_list}
+        CANDIDATE ENTITIES:
+        {json.dumps(hints, indent=2)}
+        DOCUMENT TEXT:
+        {text}
+        """
+
+    def call_model(self, prompt: str) -> str:
+        print(f"Calling model with prompt: {prompt}")
+        response = self.client.models.generate_content(
+            model=self.model,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                temperature=0.0,
+                top_p=1.0,
+                top_k=40,
+                max_output_tokens=1024,
+                response_mime_type="application/json",
+            ),
+        )
+        print(f"Response: {response.text}")
+        return response.text
+
+    def parse_json(self, text: str) -> Dict:
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            cleaned = (
+                text.strip()
+                .replace("```json", "")
+                .replace("```", "")
+                .strip()
+            )
+            return json.loads(cleaned)    
+
+    def extract(
+        self,
+        document_type: str,
+        fields: List[str],
+        text: str,
+        hints: Dict,
+    ) -> Dict:
+        prompt = self.prompt_builder(
+            document_type=document_type,
+            fields=fields,
+            text=text,
+            hints=hints,
+        )
+
+        raw_response = self.call_model(prompt)
+        parsed = self.parse_json(raw_response)
+
+        # ensure requested fields exist
+        return {field: parsed.get(field) for field in fields}
