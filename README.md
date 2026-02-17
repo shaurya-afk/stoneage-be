@@ -31,7 +31,7 @@ Copy `.env.example` to `.env` and set:
 | Purpose | Env vars |
 |--------|----------|
 | **Supabase** | `SUPABASE_URL`, `SUPABASE_ANON_KEY` (or service key); `SUPABASE_JWT_SECRET` for token verification |
-| **SMTP (optional)** | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_USE_TLS`, `MAIL_FROM` |
+| **Email** | **Resend** (recommended on Render): `RESEND_API_KEY`, `MAIL_FROM` (optional; defaults to `onboarding@resend.dev`). **Or SMTP:** `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_USE_TLS`, `MAIL_FROM` |
 | **DB (optional)** | `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` |
 
 Run:
@@ -60,3 +60,4 @@ API: `http://localhost:8000` · Docs: `http://localhost:8000/docs`
 
 - Use **Python 3.11** (e.g. `.python-version` with `3.11`). Python 3.14 is not compatible with spaCy/Pydantic v1.
 - Set all required env vars in the Render dashboard.
+- **Email:** SMTP is often blocked on Render. Use **Resend**: sign up at [resend.com](https://resend.com), create an API key, then set `RESEND_API_KEY` (and optionally `MAIL_FROM=onboarding@resend.dev`) on Render.
