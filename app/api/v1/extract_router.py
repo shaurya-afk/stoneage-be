@@ -2,8 +2,10 @@ import tempfile
 from pathlib import Path
 from uuid import UUID
 
+from pydantic import BaseModel
+
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response
 
 from app.auth.dependencies import get_current_user
 from app.db.extraction_repository import ExtractionRepository
@@ -94,6 +96,56 @@ async def extract(
             Path(tmp_path).unlink(missing_ok=True)
     except Exception as e:
         raise HTTPException(500, f"Extraction failed: {str(e)}") from e
+
+
+class SendEmailBody(BaseModel):
+    excel_path: str
+
+
+@extract_router.post("/send-email")
+async def send_extraction_email(
+    body: SendEmailBody,
+    _user: dict | None = Depends(get_current_user),
+):
+    """Send the extraction Excel to the authenticated user's email."""
+    if not _user or not _user.get("email"):
+        raise HTTPException(401, "Sign in to receive the report by email")
+    excel_path = body.excel_path.strip()
+    if not excel_path or ".." in excel_path or excel_path.startswith("/"):
+        raise HTTPException(400, "Invalid path")
+    path_obj = Path(excel_path.replace("\\", "/").strip("/"))
+    if not path_obj.parts or path_obj.parts[0] != "generated_excel":
+        raise HTTPException(400, "Invalid path")
+    if not path_obj.exists():
+        raise HTTPException(404, "File not found")
+    sent, note = send_excel_to_user(
+        to_email=_user["email"],
+        excel_path=path_obj,
+        subject="Your extraction report",
+        body="Please find your extraction report attached.",
+    )
+    return {"sent": sent, "note": note}
+
+
+@extract_router.get("/excel/download")
+async def download_excel(
+    path: str,
+    _user: dict | None = Depends(get_current_user),
+):
+    """Download the generated Excel file by path (e.g. from extract result excel_path)."""
+    if not path or ".." in path or path.startswith("/"):
+        raise HTTPException(400, "Invalid path")
+    path_obj = Path(path.replace("\\", "/").strip("/"))
+    if not path_obj.parts or path_obj.parts[0] != "generated_excel":
+        raise HTTPException(400, "Invalid path")
+    if not path_obj.exists():
+        raise HTTPException(404, "File not found")
+    filename = path_obj.name
+    return FileResponse(
+        path_obj,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        filename=filename,
+    )
 
 
 @extract_router.get("/{raw_id}/download")
