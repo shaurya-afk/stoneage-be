@@ -41,31 +41,36 @@ async def extract(
             field_list = [f.strip() for f in fields.split(",") if f.strip()]
             field_list = field_list or ["invoice_number", "invoice_date", "total_amount"]
 
-            # Store raw input (including full PDF)
             repo = ExtractionRepository()
-            raw_row = repo.insert_raw(
-                file_name=file.filename or "unknown.pdf",
-                document_type=document_type,
-                fields=field_list,
-                llm_model=orchestrator.llm_model,
-                file_content=content,
-            )
+            raw_row = None
+            try:
+                raw_row = repo.insert_raw(
+                    file_name=file.filename or "unknown.pdf",
+                    document_type=document_type,
+                    fields=field_list,
+                    llm_model=orchestrator.llm_model,
+                    file_content=content,
+                )
+            except Exception:
+                pass  # DB optional: continue without storing raw
 
             result = orchestrator.extract_data(
                 document_type=document_type,
                 fields=field_list,
             )
 
-            # Store processed result
-            raw_id = raw_row.get("id") if raw_row else None
-            repo.insert_processed(
-                file_name=file.filename or "unknown.pdf",
-                document_type=document_type,
-                fields=field_list,
-                response=result,
-                llm_model=orchestrator.llm_model,
-                raw_id=raw_id,
-            )
+            try:
+                raw_id = raw_row.get("id") if raw_row else None
+                repo.insert_processed(
+                    file_name=file.filename or "unknown.pdf",
+                    document_type=document_type,
+                    fields=field_list,
+                    response=result,
+                    llm_model=orchestrator.llm_model,
+                    raw_id=raw_id,
+                )
+            except Exception:
+                pass  # DB optional: continue without storing processed
 
             # Email Excel to the registered user when authenticated and SMTP is configured
             email_sent = False

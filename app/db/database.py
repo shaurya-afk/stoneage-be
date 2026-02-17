@@ -28,6 +28,14 @@ def _build_database_url() -> Optional[str]:
     return f"postgresql://{user}:{password_encoded}@{host}:{port}/{name}"
 
 
+def _ensure_ssl(url: str) -> str:
+    """Supabase (and most cloud Postgres) require SSL. Append sslmode=require if not present."""
+    if "sslmode=" in url:
+        return url
+    sep = "&" if "?" in url else "?"
+    return f"{url}{sep}sslmode=require"
+
+
 DATABASE_URL = _build_database_url()
 
 _engine = None
@@ -37,8 +45,9 @@ _SessionLocal = None
 def get_engine():
     global _engine
     if _engine is None and DATABASE_URL:
+        url = _ensure_ssl(DATABASE_URL)
         _engine = create_engine(
-            DATABASE_URL,
+            url,
             pool_pre_ping=True,
             pool_size=5,
             max_overflow=10,
