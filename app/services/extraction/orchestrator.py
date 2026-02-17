@@ -28,14 +28,14 @@ class ExtractionOrchestrator:
             if table_text:
                 text = f"{text}\n\n{table_text}"
         # TODO: LLM extraction temporarily disabled
-        # result = self.llm_processor.extract(
-        #     document_type=document_type,
-        #     fields=fields,
-        #     text=text,
-        #     hints=hints,
-        # )
+        result = self.llm_processor.extract(
+            document_type=document_type,
+            fields=fields,
+            text=text,
+            hints=hints,
+        )
         # return result
-        result = {f: None for f in fields}
+        # result = {f: None for f in fields}
         excel_path = self.excel_generator.create_excel(result)
         return {**result, "excel_path": str(excel_path)}
 

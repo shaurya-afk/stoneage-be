@@ -7,6 +7,7 @@ from fastapi.responses import Response
 
 from app.auth.dependencies import get_current_user
 from app.db.extraction_repository import ExtractionRepository
+from app.services.email_service import send_excel_to_user
 from app.services.extraction.orchestrator import ExtractionOrchestrator
 
 extract_router = APIRouter(prefix="/extract", tags=["extract"])
@@ -65,6 +66,23 @@ async def extract(
                 llm_model=orchestrator.llm_model,
                 raw_id=raw_id,
             )
+
+            # Email Excel to the registered user when authenticated and SMTP is configured
+            email_sent = False
+            email_note = "user_not_authenticated"
+            if _user and _user.get("email"):
+                excel_path = result.get("excel_path")
+                if excel_path:
+                    email_sent, email_note = send_excel_to_user(
+                        to_email=_user["email"],
+                        excel_path=excel_path,
+                        subject="Your extraction report",
+                        body="Please find your extraction report attached.",
+                    )
+                else:
+                    email_note = "no_excel_path"
+            result["email_sent"] = email_sent
+            result["email_note"] = email_note
 
             return result
         finally:
