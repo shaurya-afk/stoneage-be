@@ -130,3 +130,5 @@ If `POST /api/v1/extract` returns **502** and nothing appears in the service log
    - Try a **small PDF** and a longer client timeout (e.g. 60–120 s); OCR on large scanned PDFs can take a long time and may exceed time limits on free tier.
 
 3. **More visibility** – After deploying the latest code, the extract endpoint logs `POST /extract received`, file size, `starting extraction`, and `extraction done`. If these appear, the app is handling the request; if they don’t, the 502 is happening before or outside the app.
+
+4. **Large or scanned PDFs (502 after ~30s)** – The app uses a **long timeout (300s)** for scanned/OCR documents and **90s** for text-based PDFs. Render’s proxy may still close the connection at ~30s, so complex documents can 502 before the server finishes. Use a small PDF to confirm the endpoint works; for large scanned PDFs you may need to contact Render about request timeout limits or host the API where longer timeouts are supported.
