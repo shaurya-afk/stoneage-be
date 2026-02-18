@@ -109,12 +109,12 @@ def send_excel_to_user(
 
     try:
         if use_tls:
-            with smtplib.SMTP(host, port) as server:
+            with smtplib.SMTP(host, port, timeout=10) as server:
                 server.starttls()
                 server.login(user, password)
                 server.sendmail(from_email, [to_email], msg.as_string())
         else:
-            with smtplib.SMTP(host, port) as server:
+            with smtplib.SMTP(host, port, timeout=10) as server:
                 server.login(user, password)
                 server.sendmail(from_email, [to_email], msg.as_string())
         return True, "sent"
@@ -149,12 +149,12 @@ def send_text_email(to_email: str, subject: str, body: str) -> tuple[bool, str]:
 
     try:
         if use_tls:
-            with smtplib.SMTP(host, port) as server:
+            with smtplib.SMTP(host, port, timeout=10) as server:
                 server.starttls()
                 server.login(user, password)
                 server.sendmail(from_email, [to_email], msg.as_string())
         else:
-            with smtplib.SMTP(host, port) as server:
+            with smtplib.SMTP(host, port, timeout=10) as server:
                 server.login(user, password)
                 server.sendmail(from_email, [to_email], msg.as_string())
         return True, "sent"
