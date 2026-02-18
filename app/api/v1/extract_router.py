@@ -20,7 +20,7 @@ extract_router = APIRouter(prefix="/extract", tags=["extract"])
 
 
 @extract_router.post("")
-async def extract(
+def extract(
     _user: dict | None = Depends(get_current_user),
     file: UploadFile = File(..., description="PDF document to extract data from"),
     document_type: str = Form("invoice", description="Document type (e.g. invoice, receipt)"),
@@ -39,7 +39,8 @@ async def extract(
     try:
         suffix = Path(file.filename).suffix or ".pdf"
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-            content = await file.read()
+            # Sync endpoint runs in FastAPI's threadpool, so use sync file read here.
+            content = file.file.read()
             tmp.write(content)
             tmp_path = tmp.name
         logger.info("POST /extract: file saved, size=%s bytes", len(content))
