@@ -116,3 +116,17 @@ To fix the error *"tesseract is not installed or it's not in your PATH"*:
 4. The repo’s `be/Dockerfile` installs Tesseract and poppler; redeploy so the new image is used.
 
 After redeploying with Docker, scanned PDFs (e.g. "Diamond - Extrusion Machine.pdf") will work.
+
+### 502 with no logs on Render
+
+If `POST /api/v1/extract` returns **502** and nothing appears in the service logs:
+
+1. **Cold start (free tier)** – Services spin down after ~15 min inactivity. The first request can take **~30 s** to wake the instance; many clients time out and get 502.  
+   - **Check:** Open `https://your-service.onrender.com/health` in a browser; wait up to 30–60 s. If it eventually returns `{"status":"healthy"}`, the app is up.  
+   - **Then** call `POST /extract` again (optionally after a warm-up request to `/health`).
+
+2. **Request never reaches the app** – If you still see no log line like `POST /extract received` after deploy, the 502 is likely from Render’s proxy (instance not ready or timeout).  
+   - Ensure the service is **Running** in the dashboard and that **PORT** is not overridden (the Dockerfile uses `PORT` from the environment).  
+   - Try a **small PDF** and a longer client timeout (e.g. 60–120 s); OCR on large scanned PDFs can take a long time and may exceed time limits on free tier.
+
+3. **More visibility** – After deploying the latest code, the extract endpoint logs `POST /extract received`, file size, `starting extraction`, and `extraction done`. If these appear, the app is handling the request; if they don’t, the 502 is happening before or outside the app.

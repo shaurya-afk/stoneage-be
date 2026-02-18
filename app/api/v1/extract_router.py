@@ -1,3 +1,4 @@
+import logging
 import tempfile
 from pathlib import Path
 from uuid import UUID
@@ -12,6 +13,7 @@ from app.db.extraction_repository import ExtractionRepository
 from app.services.email_service import send_excel_to_user
 from app.services.extraction.orchestrator import ExtractionOrchestrator
 
+logger = logging.getLogger(__name__)
 extract_router = APIRouter(prefix="/extract", tags=["extract"])
 
 
@@ -28,6 +30,7 @@ async def extract(
     """
     Extract structured data from a PDF document.
     """
+    logger.info("POST /extract received: filename=%s", getattr(file, "filename", None))
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(400, "File must be a PDF")
 
@@ -37,6 +40,7 @@ async def extract(
             content = await file.read()
             tmp.write(content)
             tmp_path = tmp.name
+        logger.info("POST /extract: file saved, size=%s bytes", len(content))
 
         try:
             orchestrator = ExtractionOrchestrator(tmp_path)
@@ -56,10 +60,12 @@ async def extract(
             except Exception:
                 raw_row = None  # DB optional: skip storing raw on any error
 
+            logger.info("POST /extract: starting extraction")
             result = orchestrator.extract_data(
                 document_type=document_type,
                 fields=field_list,
             )
+            logger.info("POST /extract: extraction done")
 
             try:
                 repo = ExtractionRepository()
@@ -96,6 +102,7 @@ async def extract(
         finally:
             Path(tmp_path).unlink(missing_ok=True)
     except Exception as e:
+        logger.exception("POST /extract failed: %s", e)
         raise HTTPException(500, f"Extraction failed: {str(e)}") from e
 
 
