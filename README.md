@@ -71,8 +71,10 @@ Copy `.env.example` to `.env` and set:
 |--------|----------|
 | **Supabase** | `SUPABASE_URL`, `SUPABASE_ANON_KEY` (or service key); `SUPABASE_JWT_SECRET` for token verification |
 | **Email** | **Resend** (recommended on Render): `RESEND_API_KEY`, `MAIL_FROM` (optional; defaults to `onboarding@resend.dev`). **Or SMTP:** `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_USE_TLS`, `MAIL_FROM` |
-| **DB (optional)** | `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` |
+| **DB (optional)** | `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` — or a single `DATABASE_URL` |
 | **Scanned PDF (Windows)** | `POPPLER_PATH` – path to Poppler `bin` (folder containing `pdftoppm.exe`) if not on PATH |
+
+**DB on Render (Supabase):** The direct Postgres port (5432) often fails from Render with "Network is unreachable". Use Supabase’s **connection pooler** instead: in [Supabase](https://supabase.com/dashboard) → your project → **Settings** → **Database** → **Connection string** → choose **URI** and the **"Transaction"** (or "Session") pooler. That URL uses host `aws-0-<region>.pooler.supabase.com` and **port 6543**. Set that as `DATABASE_URL` on Render (or split into `DB_HOST`, `DB_PORT=6543`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`). The app will add `?sslmode=require` if missing.
 
 Run:
 

@@ -43,9 +43,9 @@ async def extract(
             field_list = [f.strip() for f in fields.split(",") if f.strip()]
             field_list = field_list or ["invoice_number", "invoice_date", "total_amount"]
 
-            repo = ExtractionRepository()
             raw_row = None
             try:
+                repo = ExtractionRepository()
                 raw_row = repo.insert_raw(
                     file_name=file.filename or "unknown.pdf",
                     document_type=document_type,
@@ -54,7 +54,7 @@ async def extract(
                     file_content=content,
                 )
             except Exception:
-                pass  # DB optional: continue without storing raw
+                raw_row = None  # DB optional: skip storing raw on any error
 
             result = orchestrator.extract_data(
                 document_type=document_type,
@@ -62,6 +62,7 @@ async def extract(
             )
 
             try:
+                repo = ExtractionRepository()
                 raw_id = raw_row.get("id") if raw_row else None
                 repo.insert_processed(
                     file_name=file.filename or "unknown.pdf",
@@ -72,7 +73,7 @@ async def extract(
                     raw_id=raw_id,
                 )
             except Exception:
-                pass  # DB optional: continue without storing processed
+                pass  # DB optional: skip storing processed on any error
 
             # Email Excel to the registered user when authenticated and SMTP is configured
             email_sent = False
