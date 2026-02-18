@@ -1,15 +1,20 @@
 import json
+import logging
 import os
 from typing import Dict, List
 
 from google import genai
 from google.genai import types
 
+logger = logging.getLogger(__name__)
+
 
 class LLMProcessor:
     def __init__(self, model: str = "gemini-2.0-flash"):
         self.model = model
-        api_key = os.getenv("API_KEY") or os.getenv("API_KEY")
+        api_key = os.getenv("API_KEY")
+        if not api_key:
+            logger.error("API_KEY env var is not set – LLM calls will fail")
         self.client = genai.Client(api_key=api_key)
 
     def prompt_builder(self, document_type: str, fields: List[str], hints: Dict, text: str) -> str:
@@ -29,7 +34,7 @@ class LLMProcessor:
         """
 
     def call_model(self, prompt: str) -> str:
-        print(f"Calling model with prompt: {prompt}")
+        logger.info("LLM call_model: sending request to %s", self.model)
         response = self.client.models.generate_content(
             model=self.model,
             contents=prompt,
@@ -41,7 +46,7 @@ class LLMProcessor:
                 response_mime_type="application/json",
             ),
         )
-        print(f"Response: {response.text}")
+        logger.info("LLM call_model: received response (%s chars)", len(response.text) if response.text else 0)
         return response.text
 
     def parse_json(self, text: str) -> Dict:

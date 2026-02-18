@@ -3,6 +3,9 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# Ensure Python output is flushed immediately (critical for Render logs)
+ENV PYTHONUNBUFFERED=1
+
 # Install Tesseract OCR and poppler (required by pdf2image for PDF → image conversion)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr \

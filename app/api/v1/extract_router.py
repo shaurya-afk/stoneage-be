@@ -1,5 +1,5 @@
-import asyncio
 import logging
+import sys
 import tempfile
 from pathlib import Path
 from uuid import UUID
@@ -14,12 +14,9 @@ from app.db.extraction_repository import ExtractionRepository
 from app.services.email_service import send_excel_to_user
 from app.services.extraction.orchestrator import ExtractionOrchestrator
 
+logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger(__name__)
 extract_router = APIRouter(prefix="/extract", tags=["extract"])
-
-# Timeouts: complex (scanned/OCR) docs need much longer than text-based PDFs
-EXTRACT_TIMEOUT_NORMAL_SEC = 90   # text-based PDFs
-EXTRACT_TIMEOUT_COMPLEX_SEC = 300  # scanned PDFs (Tesseract OCR)
 
 
 @extract_router.post("")
@@ -52,10 +49,8 @@ async def extract(
             field_list = [f.strip() for f in fields.split(",") if f.strip()]
             field_list = field_list or ["invoice_number", "invoice_date", "total_amount"]
 
-            # Use long timeout for scanned (OCR) docs, normal for text-based
             is_scanned = orchestrator.pdf_processor.is_scanned(tmp_path)
-            timeout_sec = EXTRACT_TIMEOUT_COMPLEX_SEC if is_scanned else EXTRACT_TIMEOUT_NORMAL_SEC
-            logger.info("POST /extract: is_scanned=%s, timeout=%ss", is_scanned, timeout_sec)
+            logger.info("POST /extract: is_scanned=%s", is_scanned)
 
             raw_row = None
             try:
@@ -71,21 +66,10 @@ async def extract(
                 raw_row = None  # DB optional: skip storing raw on any error
 
             logger.info("POST /extract: starting extraction")
-            try:
-                result = await asyncio.wait_for(
-                    asyncio.to_thread(
-                        orchestrator.extract_data,
-                        document_type=document_type,
-                        fields=field_list,
-                    ),
-                    timeout=timeout_sec,
-                )
-            except asyncio.TimeoutError:
-                logger.warning("POST /extract: timed out after %ss (is_scanned=%s)", timeout_sec, is_scanned)
-                raise HTTPException(
-                    504,
-                    f"Extraction timed out after {timeout_sec}s. The document may be too large or complex. Try a smaller or simpler PDF.",
-                ) from None
+            result = orchestrator.extract_data(
+                document_type=document_type,
+                fields=field_list,
+            )
             logger.info("POST /extract: extraction done")
 
             try:
