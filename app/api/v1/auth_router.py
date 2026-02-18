@@ -1,6 +1,6 @@
 import os
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel, EmailStr
 
 from app.db.supabase import get_supabase
@@ -23,7 +23,7 @@ class GoogleTokenRequest(BaseModel):
 
 
 @auth_router.post("/signup")
-async def signup(body: SignUpRequest):
+async def signup(body: SignUpRequest, background_tasks: BackgroundTasks):
     """Create a new user with email and password."""
     client = get_supabase()
     if not client:
@@ -37,6 +37,11 @@ async def signup(body: SignUpRequest):
         if not user:
             msg = getattr(response, "message", None) or "Signup failed"
             raise HTTPException(400, str(msg))
+        # Send welcome email in background (do not block or fail signup)
+        background_tasks.add_task(
+            _send_welcome_email,
+            body.email,
+        )
         return {
             "user": {
                 "id": user.id,
@@ -50,6 +55,14 @@ async def signup(body: SignUpRequest):
         }
     except Exception as e:
         raise HTTPException(400, str(e))
+
+
+def _send_welcome_email(to_email: str) -> None:
+    """Send thank-you email to new signups. Swallows errors so signup is unaffected."""
+    try:
+        send_text_email(to_email, WELCOME_EMAIL_SUBJECT, WELCOME_EMAIL_BODY)
+    except Exception:
+        pass
 
 
 @auth_router.post("/signin")

@@ -1,8 +1,9 @@
+import os
+
 from pypdf import PdfReader
 import pdfplumber
 from pdf2image import convert_from_path
 import pytesseract
-import re
 
 class PDFProcessor:
     def __init__(self, file_path: str):
@@ -29,7 +30,12 @@ class PDFProcessor:
         return tables
 
     def ocr_to_blocks(self, file_path: str):
-        pages = convert_from_path(self.file_path)
+        kwargs = {}
+        raw_path = (os.environ.get("POPPLER_PATH") or "").strip().strip('"').strip("'")
+        if raw_path:
+            # Normalize so forward slashes and backslashes work on Windows
+            kwargs["poppler_path"] = os.path.normpath(raw_path)
+        pages = convert_from_path(self.file_path, **kwargs)
         blocks = []
 
         for page_index, image in enumerate(pages):

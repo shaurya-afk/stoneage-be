@@ -27,16 +27,16 @@ class ExtractionOrchestrator:
             table_text = self._tables_to_text(data["tables"])
             if table_text:
                 text = f"{text}\n\n{table_text}"
-        # TODO: LLM extraction temporarily disabled
         result = self.llm_processor.extract(
             document_type=document_type,
             fields=fields,
             text=text,
             hints=hints,
         )
-        # return result
-        # result = {f: None for f in fields}
         excel_path = self.excel_generator.create_excel(result)
+        # LLM can return a single dict or a list of dicts (e.g. multiple rows)
+        if isinstance(result, list):
+            return {"extracted": result, "excel_path": str(excel_path)}
         return {**result, "excel_path": str(excel_path)}
 
     def _tables_to_text(self, tables: list) -> str:

@@ -120,3 +120,43 @@ def send_excel_to_user(
         return True, "sent"
     except Exception as e:
         return False, f"send_failed: {e!s}"
+
+
+def send_text_email(to_email: str, subject: str, body: str) -> tuple[bool, str]:
+    """
+    Send a plain-text email (no attachments).
+    Uses Resend if RESEND_API_KEY is set, else SMTP.
+    Returns (True, "sent") on success, (False, reason) otherwise.
+    """
+    if not _is_email_configured():
+        return False, "email_not_configured"
+
+    from_email = os.getenv("MAIL_FROM") or os.getenv("SMTP_USER") or "onboarding@resend.dev"
+
+    if _is_resend_configured():
+        return _send_via_resend_text(to_email, from_email, subject, body)
+
+    host = os.getenv("SMTP_HOST", "")
+    port = int(os.getenv("SMTP_PORT", "587"))
+    use_tls = os.getenv("SMTP_USE_TLS", "true").lower() in ("1", "true", "yes")
+    user = os.getenv("SMTP_USER", "")
+    password = os.getenv("SMTP_PASSWORD", "")
+
+    msg = MIMEText(body, "plain")
+    msg["Subject"] = subject
+    msg["From"] = from_email
+    msg["To"] = to_email
+
+    try:
+        if use_tls:
+            with smtplib.SMTP(host, port) as server:
+                server.starttls()
+                server.login(user, password)
+                server.sendmail(from_email, [to_email], msg.as_string())
+        else:
+            with smtplib.SMTP(host, port) as server:
+                server.login(user, password)
+                server.sendmail(from_email, [to_email], msg.as_string())
+        return True, "sent"
+    except Exception as e:
+        return False, f"send_failed: {e!s}"

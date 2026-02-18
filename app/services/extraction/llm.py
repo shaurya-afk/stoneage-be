@@ -73,5 +73,8 @@ class LLMProcessor:
         raw_response = self.call_model(prompt)
         parsed = self.parse_json(raw_response)
 
-        # ensure requested fields exist
+        # LLM may return a single object or a list of objects (e.g. multiple totals/rows)
+        if isinstance(parsed, list):
+            return parsed
+        # single object: ensure requested fields exist
         return {field: parsed.get(field) for field in fields}
