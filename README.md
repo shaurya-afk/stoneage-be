@@ -1,134 +1,221 @@
 # Stone Age
 
-## PDF to Excel Data Extraction API
+**AI-powered PDF data extraction backend.** Extract structured data from invoices, receipts, reports, and custom document formats. Supports both text-based and scanned PDFs via OCR, with LLM-backed extraction and export to JSON and Excel.
 
-Backend API that extracts structured data from PDFs (e.g. invoices, resumes), returns it as JSON, and generates an Excel report. Supports auth via Supabase and optional email delivery of the report to the signed-in user.
+---
 
 ## Features
 
-- **PDF extraction** – Parse layout, tables, and text; extract fields (invoice number, date, amounts, skills, etc.) with optional LLM support
-- **Excel export** – Generate `.xlsx` from extraction results
-- **Auth** – Supabase: email/password signup & signin, Google OAuth; JWT verification (ES256 JWKS + legacy HS256)
-- **Email** – Optional SMTP: send the Excel file to the authenticated user’s email after extraction
+- **Structured extraction** — Extract configurable fields (invoice number, date, amounts, line items, etc.) from PDFs using layout analysis, tables, and optional LLM (Gemini).
+- **Scanned PDF support** — OCR pipeline with Tesseract and Poppler: image-based PDFs are converted page-by-page and processed like native text.
+- **LLM-powered parsing** — Google Gemini for semantic extraction with JSON output; regex and spaCy hints improve accuracy.
+- **Structured output** — Response aligned to requested fields; export as JSON and Excel (.xlsx).
+- **Auth** — Supabase: email/password signup & signin, Google OAuth; JWT verification (ES256 JWKS + legacy HS256).
+- **Email** — Optional: send the generated Excel to the authenticated user (Resend API or SMTP).
+- **Production-ready** — Docker image with Tesseract and Poppler; Render-friendly; configurable timeouts for long-running extractions.
 
-## Tech
+---
 
-- **FastAPI**, **pdfplumber** / **pypdf**, **spaCy** (en_core_web_sm), **pandas** / **openpyxl**
-- **Tesseract OCR** + **poppler** for scanned PDFs (layout extraction from image-based pages)
-- **Supabase** (auth + optional DB), **PyJWT** for token verification
-- Python 3.11+
+## Architecture
 
-## Setup
+```
+                    ┌─────────────────────────────────────────────────────────────┐
+                    │                      Stone Age API (FastAPI)                  │
+                    └─────────────────────────────────────────────────────────────┘
+                                                │
+                    ┌───────────────────────────┼───────────────────────────┐
+                    ▼                           ▼                           ▼
+            ┌───────────────┐           ┌───────────────┐           ┌───────────────┐
+            │   Auth        │           │   Extract     │           │   Health      │
+            │   (Supabase)  │           │   (PDF → JSON │           │   /health     │
+            │   signup/signin│           │    + Excel)   │           │               │
+            └───────────────┘           └───────┬───────┘           └───────────────┘
+                                                │
+                    ┌───────────────────────────┼───────────────────────────┐
+                    ▼                           ▼                           ▼
+            ┌───────────────┐           ┌───────────────┐           ┌───────────────┐
+            │ PDFProcessor  │           │ Document      │           │ ExcelGenerator│
+            │ • is_scanned? │─────────►│ Formatter     │─────────►  │ (pandas +     │
+            │ • text/tables │           │ (spaCy +      │     │      │  openpyxl)    │
+            │ • OCR path    │           │  regex hints) │     │      └───────────────┘
+            └───────────────┘           └───────┬───────┘     │
+                    │                           │             │
+                    │ (if scanned)              ▼             │
+                    │                   ┌───────────────┐    │
+                    └──────────────────►│ LLMProcessor  │────┘
+                         Tesseract      │ (Gemini)      │
+                         + Poppler      │ JSON output   │
+                                        └───────────────┘
+```
+
+**Flow:** Upload PDF → detect text vs scanned → extract layout/tables (or OCR) → format text + build hints → LLM extraction → validate/parse JSON → generate Excel → return JSON + `excel_path`.
+
+---
+
+## Tech stack
+
+| Layer        | Technology |
+|-------------|------------|
+| API         | FastAPI, Uvicorn |
+| PDF text    | pdfplumber, pypdf |
+| PDF → images| pdf2image, **Poppler** (pdftoppm) |
+| OCR         | **Tesseract** (pytesseract) |
+| NLP / hints | spaCy (en_core_web_sm), regex |
+| LLM         | Google Gemini (google-genai) |
+| Export      | pandas, openpyxl (.xlsx) |
+| Auth        | Supabase (JWT, OAuth) |
+| Email       | Resend or SMTP |
+| DB (optional)| PostgreSQL (SQLAlchemy, psycopg2) |
+| Runtime     | Python 3.11+ |
+
+---
+
+## Installation
+
+### Docker (recommended for production and OCR)
+
+Requires no local Tesseract/Poppler install.
+
+```bash
+git clone <repo-url>
+cd be
+docker build -t stone-age .
+docker run -p 8000:8000 --env-file .env stone-age
+```
+
+API: `http://localhost:8000` · Docs: `http://localhost:8000/docs`
+
+### Local development
+
+1. **Python 3.11+** and venv:
 
 ```bash
 python -m venv .venv
-.venv\Scripts\activate   # Windows
+# Windows:
+.venv\Scripts\activate
+# Linux/macOS:
+source .venv/bin/activate
 pip install -r requirements.txt
 python -m spacy download en_core_web_sm
 ```
 
-### Local setup (Windows) – scanned PDFs
+2. **Optional – scanned PDFs:** Install system dependencies.
 
-For **scanned** PDFs (image-based, no selectable text), the app uses two **system tools** that are not Python packages. You need to install them once on your machine.
+| Tool      | Role |
+|----------|------|
+| **Poppler** | PDF → images (`pdftoppm`); used by `pdf2image`. |
+| **Tesseract** | OCR on page images. |
 
-| Tool | What it does | Why we need it |
-|------|----------------|----------------|
-| **Poppler** | Converts PDF pages into images (via `pdftoppm`) | The library `pdf2image` uses Poppler to turn each PDF page into an image so we can run OCR on it. |
-| **Tesseract** | OCR engine: reads text from images | After Poppler gives us images of each page, Tesseract extracts the text (and positions) from those images. |
+- **Windows:** Install [Tesseract](https://github.com/UB-Mannheim/tesseract/wiki) and [Poppler](https://github.com/oschwartz10612/poppler-windows/releases); add their `bin` folders to `PATH`, or set `POPPLER_PATH` in `.env` to the Poppler `bin` directory.
+- **Linux (Debian/Ubuntu):** `sudo apt-get install tesseract-ocr tesseract-ocr-eng poppler-utils`
 
-**1. Install Tesseract (Windows)**
-
-- Open: **https://github.com/UB-Mannheim/tesseract/wiki** (official Windows builds).
-- Download the latest **Windows installer** (e.g. `tesseract-ocr-w64-setup-5.x.x.exe`).
-- Run the installer. Use the default install path (e.g. `C:\Program Files\Tesseract-OCR`).
-- **Add to PATH:**  
-  - Windows key → search “Environment variables” → “Edit the system environment variables” → **Environment Variables**.  
-  - Under “System variables”, select **Path** → **Edit** → **New** → add:  
-    `C:\Program Files\Tesseract-OCR`  
-  - Confirm with OK. **Restart your terminal** (and IDE if it uses its own terminal).
-
-**2. Install Poppler (Windows)**
-
-- Open: **https://github.com/oschwartz10612/poppler-windows/releases**.
-- Download the latest **zip** (e.g. `Release-24.08.0-0.zip`).
-- Extract it to a folder, e.g. `C:\Program Files\poppler` or `C:\Users\<You>\poppler`.  
-  - Inside you’ll see a folder like `poppler-24.08.0\Library\bin` that contains `pdftoppm.exe`.
-- **Either** add that `bin` folder to your system **Path** (same steps as for Tesseract),  
-  **or** set it in your backend `.env` so the app finds Poppler without touching PATH:
-  ```env
-  POPPLER_PATH=C:/Program Files/poppler/poppler-24.08.0/Library/bin
-  ```
-  (Replace with the path that actually contains `pdftoppm.exe` on your PC. Use **forward slashes** in `.env` so backslashes aren’t misinterpreted.)
-
-**3. Check**
-
-- Restart the terminal, go to `be`, activate the venv, run `uvicorn app.main:app --reload`.
-- Upload a scanned PDF again; the “poppler” and “tesseract” errors should be gone.
-
-Copy `.env.example` to `.env` and set:
-
-| Purpose | Env vars |
-|--------|----------|
-| **Supabase** | `SUPABASE_URL`, `SUPABASE_ANON_KEY` (or service key); `SUPABASE_JWT_SECRET` for token verification |
-| **Email** | **Resend** (recommended on Render): `RESEND_API_KEY`, `MAIL_FROM` (optional; defaults to `onboarding@resend.dev`). **Or SMTP:** `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_USE_TLS`, `MAIL_FROM` |
-| **DB (optional)** | `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` — or a single `DATABASE_URL` |
-| **Scanned PDF (Windows)** | `POPPLER_PATH` – path to Poppler `bin` (folder containing `pdftoppm.exe`) if not on PATH |
-
-**DB on Render (Supabase):** The direct Postgres port (5432) often fails from Render with "Network is unreachable". Use Supabase’s **connection pooler** instead: in [Supabase](https://supabase.com/dashboard) → your project → **Settings** → **Database** → **Connection string** → choose **URI** and the **"Transaction"** (or "Session") pooler. That URL uses host `aws-0-<region>.pooler.supabase.com` and **port 6543**. Set that as `DATABASE_URL` on Render (or split into `DB_HOST`, `DB_PORT=6543`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`). The app will add `?sslmode=require` if missing.
-
-Run:
+3. **Run:**
 
 ```bash
 uvicorn app.main:app --reload
 ```
 
-API: `http://localhost:8000` · Docs: `http://localhost:8000/docs`
+---
 
-## API overview
+## Environment variables
+
+Copy `.env.example` to `.env` and configure as needed.
+
+| Purpose        | Variables |
+|----------------|-----------|
+| **LLM (required for extraction)** | `API_KEY` — Google AI / Gemini API key |
+| **Auth**       | `SUPABASE_URL`, `SUPABASE_ANON_KEY` (or `SUPABASE_SERVICE_KEY`); `SUPABASE_JWT_SECRET` for JWT verification |
+| **Email**      | **Resend:** `RESEND_API_KEY`, `MAIL_FROM` (optional). **Or SMTP:** `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_USE_TLS`, `MAIL_FROM` |
+| **Database (optional)** | `DATABASE_URL` or `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` |
+| **OCR (local)** | `POPPLER_PATH` — path to Poppler `bin` if not on `PATH` |
+
+---
+
+## API usage
+
+### Extract (main endpoint)
+
+**Request**
+
+```http
+POST /api/v1/extract
+Content-Type: multipart/form-data
+Authorization: Bearer <access_token>   # optional; required for email + stored PDF download
+
+file: <PDF file>
+document_type: invoice
+fields: invoice_number,invoice_date,total_amount,vendor_name
+```
+
+**Response (200)**
+
+```json
+{
+  "invoice_number": "INV-2024-001",
+  "invoice_date": "2024-01-15",
+  "total_amount": "1,250.00",
+  "vendor_name": "Acme Corp",
+  "excel_path": "generated_excel/extraction_a1b2c3d4.xlsx",
+  "email_note": "queued"
+}
+```
+
+For multi-row extractions the API may return `"extracted": [ {...}, ... ]` with the same `excel_path`.
+
+**Other endpoints**
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/v1/auth/signup` | Email/password signup |
-| POST | `/api/v1/auth/signin` | Email/password signin |
-| GET | `/api/v1/auth/google/url` | Get Google OAuth URL |
-| POST | `/api/v1/auth/google` | Sign in with Google ID token |
-| POST | `/api/v1/extract` | Upload PDF, extract data; returns JSON + `excel_path`; emails Excel if SMTP set and user authenticated |
-| GET | `/api/v1/extract/{raw_id}/download` | Download stored PDF (auth required) |
-| GET | `/health` | Health check |
+| POST   | `/api/v1/auth/signup` | Email/password signup |
+| POST   | `/api/v1/auth/signin` | Email/password signin |
+| GET    | `/api/v1/auth/google/url` | Google OAuth URL |
+| POST   | `/api/v1/auth/google` | Sign in with Google ID token |
+| GET    | `/api/v1/extract/{raw_id}/download` | Download stored PDF (auth) |
+| GET    | `/api/v1/extract/excel/download?path=...` | Download Excel by path (auth) |
+| GET    | `/health` | Health check |
 
-**Extract** expects `Authorization: Bearer <access_token>` when auth is configured, plus form/body: `file` (PDF), `document_type`, `fields` (comma-separated).
+---
 
-## Deploy (Render)
+## OCR flow (scanned PDFs)
 
-- Use **Python 3.11** (e.g. `.python-version` with `3.11`). Python 3.14 is not compatible with spaCy/Pydantic v1.
-- Set all required env vars in the Render dashboard.
-- **Email:** SMTP is often blocked on Render. Use **Resend**: sign up at [resend.com](https://resend.com), create an API key, then set `RESEND_API_KEY` (and optionally `MAIL_FROM=onboarding@resend.dev`) on Render.
+1. **Detection** — `pypdf` checks if any page has extractable text; if none, the PDF is treated as scanned.
+2. **Page images** — `pdf2image` (Poppler) converts one page at a time to images at 150 DPI to limit memory.
+3. **OCR** — Tesseract (`pytesseract`) runs on each image; word-level text and bounding boxes are collected.
+4. **Layout** — Words are turned into blocks (page, position) and merged with the same formatter used for text PDFs.
+5. **Tables** — Still from pdfplumber (may be empty for image-only PDFs); any extracted tables are appended to the text passed to the LLM.
+6. **Downstream** — Formatter builds text + hints; LLM returns JSON; Excel is generated as for text PDFs.
 
-### Scanned PDFs (OCR) – use Docker
+---
 
-Extraction supports **scanned** PDFs (image-based, no selectable text) via **Tesseract OCR**. Tesseract is a system binary, not a Python package, so it is **not** installed by the default Render Python buildpack.
+## Deployment (Render)
 
-To fix the error *"tesseract is not installed or it's not in your PATH"*:
+- **Use Docker** so Tesseract and Poppler are available (no buildpack support for these binaries).
+- In Render: create a **Web Service** → **Environment**: Docker → **Root Directory**: `be` (so `be/Dockerfile` is used).
+- Set all required env vars (`API_KEY`, Supabase, optional DB and email). For Postgres, prefer Supabase connection pooler (e.g. port **6543**) and `DATABASE_URL` with `?sslmode=require` if needed.
+- **Email:** Resend is recommended; set `RESEND_API_KEY` and optionally `MAIL_FROM`. SMTP is often restricted on Render.
+- **Cold starts:** Free tier may sleep after inactivity; first request can take ~30 s. Use `/health` to warm up before calling `/extract`.
+- **Timeouts:** Extract uses long timeouts (e.g. 300 s for OCR); Render’s proxy may still close at ~30 s. For large scanned PDFs, consider a longer timeout or another host.
 
-1. Deploy the backend with **Docker** on Render (not native Python).
-2. In the Render dashboard: create or edit your service → set **Environment** to **Docker**.
-3. Set **Root Directory** to `be` (so the build context is `be` and the Dockerfile at `be/Dockerfile` is used). Leave **Dockerfile Path** empty so it defaults to `./Dockerfile` inside that root.
-4. The repo’s `be/Dockerfile` installs Tesseract and poppler; redeploy so the new image is used.
+---
 
-After redeploying with Docker, scanned PDFs (e.g. "Diamond - Extrusion Machine.pdf") will work.
+## Roadmap
 
-### 502 with no logs on Render
+- [ ] Configurable Pydantic schemas per `document_type` for strict validation of LLM output.
+- [ ] Webhook or queue for async extraction of large documents.
+- [ ] More document types (purchase orders, contracts) and field presets.
+- [ ] Optional caching of extraction results by file hash.
 
-If `POST /api/v1/extract` returns **502** and nothing appears in the service logs:
+---
 
-1. **Cold start (free tier)** – Services spin down after ~15 min inactivity. The first request can take **~30 s** to wake the instance; many clients time out and get 502.  
-   - **Check:** Open `https://your-service.onrender.com/health` in a browser; wait up to 30–60 s. If it eventually returns `{"status":"healthy"}`, the app is up.  
-   - **Then** call `POST /extract` again (optionally after a warm-up request to `/health`).
+## Contributing
 
-2. **Request never reaches the app** – If you still see no log line like `POST /extract received` after deploy, the 502 is likely from Render’s proxy (instance not ready or timeout).  
-   - Ensure the service is **Running** in the dashboard and that **PORT** is not overridden (the Dockerfile uses `PORT` from the environment).  
-   - Try a **small PDF** and a longer client timeout (e.g. 60–120 s); OCR on large scanned PDFs can take a long time and may exceed time limits on free tier.
+1. Fork the repo and create a branch from `main`.
+2. Install dev deps and run tests (see above).
+3. Follow existing code style (FastAPI patterns, type hints).
+4. Open a PR with a short description and reference any issue.
 
-3. **More visibility** – After deploying the latest code, the extract endpoint logs `POST /extract received`, file size, `starting extraction`, and `extraction done`. If these appear, the app is handling the request; if they don’t, the 502 is happening before or outside the app.
+---
 
-4. **Large or scanned PDFs (502 after ~30s)** – The app uses a **long timeout (300s)** for scanned/OCR documents and **90s** for text-based PDFs. Render’s proxy may still close the connection at ~30s, so complex documents can 502 before the server finishes. Use a small PDF to confirm the endpoint works; for large scanned PDFs you may need to contact Render about request timeout limits or host the API where longer timeouts are supported.
+## License
+
+See [LICENSE](LICENSE) in the repository root.
