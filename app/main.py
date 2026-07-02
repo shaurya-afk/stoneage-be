@@ -16,3 +16,6 @@ app.include_router(auth_router, prefix="/api/v1")
 def health_check():
     return {"status": "healthy"}
 
+@app.get("/about")
+def about():
+    return {"about": "It's a data extraction tool and provides results in either json or excel format."}
