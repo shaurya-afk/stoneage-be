@@ -3,18 +3,17 @@ from app.services.extraction.llm import LLMProcessor
 from app.services.processor.pdf_processor import PDFProcessor
 from app.utils.excel import ExcelGenerator
 
-
 class ExtractionOrchestrator:
     def __init__(self, file_path: str):
         self.pdf_processor = PDFProcessor(file_path)
         self.formatter = DocumentFormatter()
         self.llm_processor = LLMProcessor()
         self.excel_generator = ExcelGenerator()
-
+    
     @property
     def llm_model(self) -> str:
         return self.llm_processor.model
-
+    
     def extract_data(
         self,
         document_type: str = "invoice",
@@ -38,7 +37,7 @@ class ExtractionOrchestrator:
         if isinstance(result, list):
             return {"extracted": result, "excel_path": str(excel_path)}
         return {**result, "excel_path": str(excel_path)}
-
+    
     def _tables_to_text(self, tables: list) -> str:
         parts = []
         for i, table in enumerate(tables):
@@ -49,3 +48,4 @@ class ExtractionOrchestrator:
                 if row:
                     parts.append(" | ".join(str(c) if c is not None else "" for c in row))
         return "\n".join(parts) if parts else ""
+      
