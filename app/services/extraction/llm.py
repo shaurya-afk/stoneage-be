@@ -8,9 +8,8 @@ from google.genai import types
 
 logger = logging.getLogger(__name__)
 
-
 class LLMProcessor:
-    def __init__(self, model: str = "gemini-2.0-flash"):
+    def __init__(self, model: str = "gemini-2.5-pro"):
         self.model = model
         api_key = os.getenv("API_KEY")
         if not api_key:
@@ -19,7 +18,7 @@ class LLMProcessor:
 
     def prompt_builder(self, document_type: str, fields: List[str], hints: Dict, text: str) -> str:
         field_list = "\n".join([f"- {f}" for f in fields])
-
+        
         return f"""
         You are extracting structured data from a {document_type}.
         Extract ONLY the requested fields.
@@ -32,7 +31,7 @@ class LLMProcessor:
         DOCUMENT TEXT:
         {text}
         """
-
+    
     def call_model(self, prompt: str) -> str:
         logger.info("LLM call_model: sending request to %s", self.model)
         response = self.client.models.generate_content(
@@ -48,7 +47,7 @@ class LLMProcessor:
         )
         logger.info("LLM call_model: received response (%s chars)", len(response.text) if response.text else 0)
         return response.text
-
+    
     def parse_json(self, text: str) -> Dict:
         try:
             return json.loads(text)
@@ -60,7 +59,7 @@ class LLMProcessor:
                 .strip()
             )
             return json.loads(cleaned)    
-
+    
     def extract(
         self,
         document_type: str,
@@ -74,12 +73,13 @@ class LLMProcessor:
             text=text,
             hints=hints,
         )
-
+        
         raw_response = self.call_model(prompt)
         parsed = self.parse_json(raw_response)
-
+        
         # LLM may return a single object or a list of objects (e.g. multiple totals/rows)
         if isinstance(parsed, list):
             return parsed
         # single object: ensure requested fields exist
         return {field: parsed.get(field) for field in fields}
+      
