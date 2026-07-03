@@ -13,13 +13,15 @@ from app.auth.dependencies import get_current_user
 from app.db.extraction_repository import ExtractionRepository
 from app.services.email_service import send_excel_to_user
 from app.services.extraction.orchestrator import ExtractionOrchestrator
+from app.utils.debug_logger import DebugLogger
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger(__name__)
 extract_router = APIRouter(prefix="/extract", tags=["extract"])
 
+db_logger = DebugLogger(__name__)
 
-@extract_router.post("")
+@extract_router.post(""")
 def extract(
     background_tasks: BackgroundTasks,
     _user: dict | None = Depends(get_current_user),
@@ -30,9 +32,7 @@ def extract(
         description="Comma-separated field names to extract",
     ),
 ):
-    """
-    Extract structured data from a PDF document.
-    """
+    """Extract structured data from a PDF document."""
     logger.info("POST /extract received: filename=%s", getattr(file, "filename", None))
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(400, "File must be a PDF")
@@ -119,7 +119,6 @@ def extract(
 class SendEmailBody(BaseModel):
     excel_path: str
 
-
 @extract_router.post("/send-email")
 async def send_extraction_email(
     body: SendEmailBody,
@@ -144,7 +143,6 @@ async def send_extraction_email(
     )
     return {"sent": sent, "note": note}
 
-
 @extract_router.get("/excel/download")
 async def download_excel(
     path: str,
@@ -165,7 +163,6 @@ async def download_excel(
         filename=filename,
     )
 
-
 @extract_router.get("/{raw_id}/download")
 async def download_raw_pdf(
     raw_id: UUID,
@@ -180,5 +177,5 @@ async def download_raw_pdf(
     return Response(
         content=content,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={{"Content-Disposition": f"attachment; filename="{filename}""}},
     )

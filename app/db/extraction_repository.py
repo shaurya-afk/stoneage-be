@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 def _sanitize_for_jsonb(obj: Any) -> Any:
-    """Remove null bytes from strings - PostgreSQL JSONB rejects \\u0000."""
+    """Remove null bytes from strings - PostgreSQL JSONB rejects \u0000."""
     if isinstance(obj, str):
         return obj.replace("\x00", "")
     if isinstance(obj, dict):
@@ -99,3 +99,4 @@ class ExtractionRepository:
         except Exception as e:
             logger.exception("get_raw_file failed: %s", e)
             return None
+

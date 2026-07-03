@@ -36,8 +36,8 @@ class ExtractionOrchestrator:
         excel_path = self.excel_generator.create_excel(result)
         # LLM can return a single dict or a list of dicts (e.g. multiple rows)
         if isinstance(result, list):
-            return {"extracted": result, "excel_path": str(excel_path)}
-        return {**result, "excel_path": str(excel_path)}
+            return {{"extracted": result, "excel_path": str(excel_path)}}
+        return {{**result, "excel_path": str(excel_path)}}
 
     def _tables_to_text(self, tables: list) -> str:
         parts = []
@@ -49,3 +49,4 @@ class ExtractionOrchestrator:
                 if row:
                     parts.append(" | ".join(str(c) if c is not None else "" for c in row))
         return "\n".join(parts) if parts else ""
+

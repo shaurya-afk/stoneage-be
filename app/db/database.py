@@ -35,12 +35,10 @@ def _ensure_ssl(url: str) -> str:
     sep = "&" if "?" in url else "?"
     return f"{url}{sep}sslmode=require"
 
-
 DATABASE_URL = _build_database_url()
 
 _engine = None
 _SessionLocal = None
-
 
 def get_engine():
     global _engine
@@ -51,7 +49,7 @@ def get_engine():
             pool_pre_ping=True,
             pool_size=5,
             max_overflow=10,
-            connect_args={"connect_timeout": 5},
+            connect_args={{"connect_timeout": 10}},
         )
         # Create tables if they don't exist
         try:
@@ -59,7 +57,6 @@ def get_engine():
         except Exception as e:
             logger.warning("Could not create tables (they may already exist): %s", e)
     return _engine
-
 
 def get_session_factory():
     global _SessionLocal
@@ -73,10 +70,8 @@ def get_session_factory():
             )
     return _SessionLocal
 
-
 def is_configured() -> bool:
     return bool(DATABASE_URL)
-
 
 @contextmanager
 def get_db() -> Generator[Optional[Session], None, None]:
